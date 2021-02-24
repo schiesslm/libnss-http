@@ -166,7 +166,7 @@ enum nss_status _nss_http_getgrgid_r(gid_t gid, struct group *result, char *buff
     json_object *json_root;
 
     char key[MAX_URLKEY_LEN];
-    sprintf(key, "gid=%d", gid);
+    sprintf(key, "id=%d", gid);
     genurl(url, "group", key);
 
 

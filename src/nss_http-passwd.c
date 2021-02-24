@@ -184,7 +184,7 @@ enum nss_status _nss_http_getpwuid_r(uid_t uid, struct passwd *result, char *buf
     json_object *json_root;
 
     char key[MAX_URLKEY_LEN];
-    sprintf(key, "uid=%d", uid);
+    sprintf(key, "id=%d", uid);
     genurl(url, "passwd", key);
 
     char *response = nss_http_request(url);

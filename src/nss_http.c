@@ -5,10 +5,13 @@
 #include <curl/curl.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 struct config
 {
    char httpserver[64];
+   char httpuser[64];
+   char httppassword[64];
    char debug[5];
    long timeout;
 };
@@ -20,10 +23,19 @@ struct MemoryStruct {
 
 struct config conf;
 
+void debug_out(const char *msg, ...)
+{
+    if (strcmp("true", conf.debug) == 0) {
+        va_list args;
+        va_start(args, msg);
+        vfprintf(stderr, msg, args);
+        va_end(args);
+    }
+}
+
 void debug_func_name(const char *func)
 {
-    if (strcmp("true", conf.debug) == 0)
-        fprintf(stderr, "NSS-HTTP: called function %s \n", func);
+    debug_out("NSS-HTTP: called function '%s' \n", func);
 }
 
 void readconfig(struct config *configstruct)
@@ -31,7 +43,7 @@ void readconfig(struct config *configstruct)
     FILE *f;
     if ((f = fopen (CONFIG_FILE, "r")) == NULL)
     {
-        fprintf(stderr, "NSS-HTTP: error opening configuration file '%s'\n", CONFIG_FILE);
+        debug_out("NSS-HTTP: error opening configuration file '%s'\n", CONFIG_FILE);
         exit(1);
     }
 
@@ -43,6 +55,8 @@ void readconfig(struct config *configstruct)
         }
 
         if ((sscanf(line, "HTTPSERVER=%s\n", configstruct->httpserver) != 0)
+            || (sscanf(line, "HTTPUSER=%s\n", configstruct->httpuser) != 0)
+            || (sscanf(line, "HTTPPASSWORD=%s\n", configstruct->httppassword) != 0)
             || (sscanf(line, "DEBUG=%s\n", configstruct->debug) != 0)
             || (sscanf(line, "TIMEOUT=%ld\n", &configstruct->timeout) != 0))
         {
@@ -59,7 +73,7 @@ void getmyhostname(char *hostname)
 
     struct addrinfo hints={ .ai_family=AF_UNSPEC, .ai_flags=AI_CANONNAME };
     struct addrinfo *res=NULL;
-    
+
     if (getaddrinfo(hostname, NULL, &hints, &res) == 0) {
         snprintf(hostname, MAX_HOSTNAME_LEN, "%s", res->ai_canonname);
         freeaddrinfo(res);
@@ -90,12 +104,12 @@ static size_t write_response(void *ptr, size_t size, size_t nmemb, void *stream)
         mem->data = realloc(mem->data, mem->size + realsize + 1);
         if (mem->data == NULL) {
             // out of memory
-            fprintf(stderr, "NSS-HTTP: not enough memory (realloc returned NULL)\n");
+            debug_out("NSS-HTTP: not enough memory (realloc returned NULL)\n");
             return 0;
         }
     } else {
         // request data is too large
-        fprintf(stderr, "request data is too large\n");
+        debug_out("request data is too large\n");
         return 0;
     }
 
@@ -119,7 +133,7 @@ char *nss_http_request(const char *url)
 
     curl_global_init(CURL_GLOBAL_ALL);
     curl = curl_easy_init();
-    headers = curl_slist_append(headers, "User-Agent: NSS-HTTP");    
+    headers = curl_slist_append(headers, "User-Agent: NSS-HTTP");
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
@@ -129,13 +143,21 @@ char *nss_http_request(const char *url)
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_response);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &chunk);
 
+    if (strlen(conf.httpuser) > 0) {
+	debug_out("NSS-HTTP: sending authenticated request as user %s\n", conf.httpuser);
+        curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+        curl_easy_setopt(curl, CURLOPT_USERNAME, conf.httpuser);
+        curl_easy_setopt(curl, CURLOPT_PASSWORD, conf.httppassword);
+    }
+
     result = curl_easy_perform(curl);
     if(result != CURLE_OK) {
-        fprintf(stderr, "NSS-HTTP: curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+        debug_out("NSS-HTTP: curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
     } else {
         result = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
+        debug_out("NSS-HTTP: received http status code %ld\n", code);
         if ((result != CURLE_OK) && (code != 200)) {
-            fprintf(stderr, "NSS-HTTP: curl_easy_getinfo() failed: result: %s, return code: %ld\n", curl_easy_strerror(result), code);
+            debug_out("NSS-HTTP: curl_easy_getinfo() failed: result: %s, return code: %ld\n", curl_easy_strerror(result), code);
         };
     };
 

@@ -19,6 +19,7 @@
 extern char *nss_http_request(const char *);
 
 extern void debug_func_name(const char *func);
+extern void debug_out(const char *msg, ...);
 extern void genurl(char* url, const char *type, const char *key);
 
 #endif /* NSS_HTTP_H */
