@@ -109,13 +109,15 @@ static size_t write_response(void *ptr, size_t size, size_t nmemb, void *stream)
         }
     } else {
         // request data is too large
-        debug_out("request data is too large\n");
+        debug_out("NSS-HTTP: response data is too large\n");
         return 0;
     }
 
     memcpy(&(mem->data[mem->size]), ptr, realsize);
     mem->size += realsize;
     mem->data[mem->size] = 0;
+
+    debug_out("NSS-HTTP: received %ld bytes of response data\n", realsize);
 
     return realsize;
 }
